@@ -1,0 +1,1300 @@
+/* ============================================================================
+   LIQUID GLASS FOR SPOTIFY — content.css  (v2 · hardened)
+   iOS 28 "Liquid Glass" GUI layer for open.spotify.com
+   ----------------------------------------------------------------------------
+   Selector strategy (survives Spotify redesigns):
+     1. Semantic landmarks : header / footer / aside + ARIA roles
+     2. data-testid hooks  : [data-testid="…"], [data-testid*="…"]
+     3. Class fragments    : [class*="nowPlayingBar"], [class*="topBar"] …
+   ...all grouped with :is() so one recipe covers every era of the DOM.
+
+   Tunables (written live by content.js from chrome.storage):
+     --lg-frost --lg-sat --lg-blur --lg-radius --lg-tint-h/s/l/a
+     --lg-spec --lg-border --lg-disp
+   ========================================================================== */
+
+:root {
+  --filter-id: url(#lg-glass-filter);
+  --lg-frost: 0.14;
+  --lg-sat: 1.35;
+  --lg-blur: 20px;
+  --lg-radius: 28px;
+  --lg-tint-h: 258;
+  --lg-tint-s: 90%;
+  --lg-tint-l: 62%;
+  --lg-tint-a: 0.2;
+  --lg-spec: 0.6;
+  --lg-border: 0.32;
+  --lg-disp: 26;
+  --lg-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --lg-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ============================================================================
+   0 · APP WRAPPER TRANSPARENCY  (so glass has an aurora to refract)
+   ========================================================================== */
+
+html.lg-enabled,
+html.lg-enabled body {
+  background: transparent !important;
+}
+
+html.lg-enabled :is(
+  #main,
+  body > div:not(.lg-toast),
+  main,
+  [role="main"],
+  [class*="main-root"],
+  [class*="main-layout"],
+  [class*="main-view-container"],
+  [class*="main-view-container__scroll-node"],
+  [class*="Root__main-view"],
+  [class*="Root__top-container"],
+  [class*="top-container"],
+  [data-testid="main-view"]
+) {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Spotify's own top-bar scrim / overlays — replaced by glass */
+html.lg-enabled :is(
+  [class*="topBar-overlay"],
+  [class*="topBar-background"],
+  [class*="main-topBar-overlay"]
+) {
+  background: transparent !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ambient aurora (behind everything) */
+html.lg-enabled.lg-ambient::before {
+  content: "";
+  position: fixed;
+  inset: -18%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 34% at 16% 20%, rgb(124 92 255 / 0.55), transparent 68%),
+    radial-gradient(40% 32% at 84% 12%, rgb(255 95 162 / 0.4), transparent 70%),
+    radial-gradient(48% 40% at 78% 84%, rgb(56 189 248 / 0.42), transparent 72%),
+    radial-gradient(38% 32% at 14% 86%, rgb(255 158 64 / 0.3), transparent 72%),
+    radial-gradient(34% 30% at 50% 46%, rgb(99 102 241 / 0.42), transparent 74%),
+    linear-gradient(170deg, #120c2e 0%, #0a0720 52%, #06040e 100%);
+  filter: saturate(1.15);
+  animation: lg-aurora-drift 24s ease-in-out infinite alternate;
+}
+@keyframes lg-aurora-drift {
+  0%   { transform: translate3d(-1.5%, -1%, 0) scale(1); }
+  50%  { transform: translate3d(1.5%, 1.2%, 0) scale(1.05); }
+  100% { transform: translate3d(-1%, 1.5%, 0) scale(1.02); }
+}
+
+/* ============================================================================
+   1 · GLASS RECIPES
+   ========================================================================== */
+
+/* ---- Full refraction glass — landmarks, bars, popovers, modals ---------- */
+html.lg-enabled .lg-glass,
+html.lg-enabled :is(
+  header:not(main header),
+  [role="banner"],
+  footer:not(main footer),
+  [role="contentinfo"],
+  aside:not(main aside),
+  [role="complementary"],
+  [data-testid="topbar"],
+  [data-testid="left-sidebar"],
+  [data-testid="right-sidebar"],
+  [data-testid="now-playing-bar"],
+  [data-testid="now-playing-widget"],
+  [data-testid="queue-view"],
+  [data-testid="context-menu"],
+  [data-testid="modal"],
+  [class*="topBar-container"],
+  [class*="main-topBar-container"],
+  [class*="nowPlayingBar"],
+  [class*="Root__nav-bar"],
+  [class*="Root__right-sidebar"],
+  [class*="navBar-navBar"],
+  [class*="buddyFeed"],
+  [class*="contextMenu-menu"],
+  [class*="main-modal-container"],
+  [class*="dropDown-dropDown"],
+  [class*="lyrics-lyrics"],
+  [role="dialog"],
+  [role="menu"],
+  [role="tooltip"],
+  [class*="tooltip"]
+) {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / calc(var(--lg-spec) * 0.16)),
+      rgb(255 255 255 / 0) 46%
+    ),
+    linear-gradient(
+      125deg,
+      hsl(var(--lg-tint-h) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 1.15)),
+      hsl(calc(var(--lg-tint-h) + 32) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 0.7))
+    ),
+    hsl(240 14% 4% / var(--lg-frost));
+  -webkit-backdrop-filter:
+    var(--filter-id) saturate(var(--lg-sat)) blur(var(--lg-blur)) brightness(1.03);
+  backdrop-filter:
+    var(--filter-id) saturate(var(--lg-sat)) blur(var(--lg-blur)) brightness(1.03);
+  border: 1px solid rgb(255 255 255 / var(--lg-border)) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / calc(var(--lg-spec) * 0.6)),
+    inset 0 0 2px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.4)),
+    inset 0 0 12px 5px rgb(255 255 255 / calc(var(--lg-spec) * 0.16)),
+    inset 0 4px 18px rgb(17 17 26 / 0.06),
+    inset 0 8px 28px rgb(17 17 26 / 0.06),
+    inset 0 6px 60px rgb(17 17 26 / 0.06),
+    0 18px 60px hsl(var(--lg-tint-h) 90% 50% / 0.22),
+    0 12px 36px rgb(0 0 0 / 0.42),
+    0 2px 10px rgb(0 0 0 / 0.28);
+}
+
+/* ---- Lite glass — repeated small items ---------------------------------- */
+html.lg-enabled .lg-glass-lite,
+html.lg-enabled :is(
+  [class*="main-card"],
+  [class*="x-categoryCard"],
+  [class*="card-card"],
+  [data-testid="card-container"],
+  [class*="chip-chip"],
+  [data-testid="chip"],
+  [class*="playButton"],
+  [class*="trackList-trackListRow"]:hover,
+  [class*="rootlist-rootlistItem"]:hover,
+  [class*="yourLibrary-yourLibraryItem"]:hover,
+  [role="row"]:hover,
+  [class*="suggestionListItem"],
+  [class*="embedButton"],
+  [class*="actionBar-ActionBar"],
+  [data-testid="action-bar-row"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="navBar-navBarLink"],
+  [class*="userWidget"],
+  [data-testid="user-widget-link"],
+  [class*="searchInput"],
+  [class*="topBar-searchBar"],
+  [data-testid="search-input"],
+  header:not(main header) :is(button, [role="button"])
+) {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / calc(var(--lg-spec) * 0.12)), rgb(255 255 255 / 0) 55%),
+    hsl(var(--lg-tint-h) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 0.75)),
+    hsl(240 12% 5% / calc(var(--lg-frost) * 0.9));
+  -webkit-backdrop-filter: saturate(var(--lg-sat)) blur(calc(var(--lg-blur) * 0.5));
+  backdrop-filter: saturate(var(--lg-sat)) blur(calc(var(--lg-blur) * 0.5));
+  border: 1px solid rgb(255 255 255 / calc(var(--lg-border) * 0.85)) !important;
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.38)),
+    inset 0 0 8px 2px rgb(255 255 255 / calc(var(--lg-spec) * 0.1)),
+    0 8px 22px rgb(0 0 0 / 0.3),
+    0 2px 8px hsl(var(--lg-tint-h) 90% 50% / 0.12);
+  transition:
+    transform 0.45s var(--lg-ease),
+    box-shadow 0.45s var(--lg-ease),
+    background-color 0.45s var(--lg-ease),
+    border-color 0.45s var(--lg-ease);
+}
+
+/* ============================================================================
+   2 · LANDMARK CHROME — floating panel geometry
+   ========================================================================== */
+
+/* Top bar — floating capsule */
+html.lg-enabled :is(
+  [class*="topBar-container"],
+  [data-testid="topbar"],
+  header:not(main header),
+  [role="banner"]
+) {
+  border-radius: 0 0 var(--lg-radius) var(--lg-radius);
+  border-top: 0 !important;
+  margin-left: 12px;
+  margin-right: 12px;
+  transition: margin 0.4s var(--lg-ease), border-radius 0.4s var(--lg-ease);
+}
+
+/* Left sidebar / right panel — floating cards */
+html.lg-enabled :is(
+  aside:not(main aside),
+  [role="complementary"],
+  [data-testid="left-sidebar"],
+  [data-testid="right-sidebar"],
+  [class*="Root__nav-bar"],
+  [class*="Root__right-sidebar"],
+  [class*="buddyFeed"]
+) {
+  border-radius: var(--lg-radius);
+  margin: 12px 0 12px 12px;
+  border-left: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  overflow: hidden;
+}
+
+html.lg-enabled :is(
+  [data-testid="right-sidebar"],
+  [class*="Root__right-sidebar"],
+  [class*="buddyFeed"]
+) {
+  margin: 12px 12px 12px 0;
+  border-right: 0 !important;
+  border-left: 1px solid rgb(255 255 255 / var(--lg-border)) !important;
+}
+
+/* Now-playing dock geometry lives in section 6 (reference player widget) */
+
+/* ============================================================================
+   3 · TOP BAR CONTROLS
+   ========================================================================== */
+
+html.lg-enabled :is(
+  [class*="searchInput"],
+  [class*="topBar-searchBar"],
+  [data-testid="search-input"]
+) {
+  border-radius: 999px !important;
+  min-height: 46px;
+}
+
+html.lg-enabled :is(
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"]
+) {
+  border-radius: 50% !important;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+}
+
+html.lg-enabled :is(
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"]
+):hover {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.45)),
+    0 10px 24px rgb(0 0 0 / 0.38);
+}
+
+html.lg-enabled :is([class*="userWidget"], [data-testid="user-widget-link"]) {
+  border-radius: 999px !important;
+  padding: 2px 12px 2px 2px;
+  gap: 8px;
+}
+
+/* ============================================================================
+   4 · SIDEBAR CONTENT
+   ========================================================================== */
+
+html.lg-enabled :is([class*="navBar-navBarLink"], [class*="main-navBar-navBarLink"]) {
+  border-radius: 14px !important;
+  margin: 2px 8px;
+  transition: transform 0.35s var(--lg-ease), background-color 0.35s var(--lg-ease);
+}
+html.lg-enabled :is([class*="navBar-navBarLink"]):hover {
+  transform: translateX(3px);
+}
+
+html.lg-enabled :is(
+  [class*="rootlist-rootlistItem"],
+  [class*="yourLibrary-yourLibraryItem"]
+) {
+  border-radius: 14px !important;
+  margin: 1px 8px;
+  transition: transform 0.35s var(--lg-ease), background-color 0.35s var(--lg-ease);
+}
+html.lg-enabled :is(
+  [class*="rootlist-rootlistItem"],
+  [class*="yourLibrary-yourLibraryItem"]
+):hover {
+  transform: translateX(3px);
+}
+
+html.lg-enabled :is([class*="chip-chip"], [data-testid="chip"]) {
+  border-radius: 999px !important;
+  min-height: 34px;
+  transition: transform 0.35s var(--lg-ease-spring), box-shadow 0.35s var(--lg-ease);
+}
+html.lg-enabled :is([class*="chip-chip"], [data-testid="chip"]):hover {
+  transform: translateY(-2px);
+}
+html.lg-enabled :is([class*="chip-chip"], [data-testid="chip"]):active {
+  transform: scale(0.96);
+}
+
+/* ============================================================================
+   5 · MAIN VIEW — cards, headers, rows
+   ========================================================================== */
+
+html.lg-enabled :is(
+  [class*="main-card"],
+  [class*="x-categoryCard"],
+  [class*="card-card"],
+  [data-testid="card-container"]
+) {
+  border-radius: var(--lg-radius) !important;
+  overflow: hidden;
+  transition: transform 0.5s var(--lg-ease), box-shadow 0.5s var(--lg-ease);
+}
+html.lg-enabled :is(
+  [class*="main-card"],
+  [class*="x-categoryCard"],
+  [class*="card-card"],
+  [data-testid="card-container"]
+):hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.4)),
+    0 26px 52px hsl(var(--lg-tint-h) 90% 45% / 0.25),
+    0 24px 48px rgb(0 0 0 / 0.45);
+}
+
+html.lg-enabled :is([class*="cardImage"], [class*="card-imageContainer"], .cover-art) {
+  border-radius: calc(var(--lg-radius) - 10px) !important;
+  overflow: hidden;
+  box-shadow:
+    0 10px 26px rgb(0 0 0 / 0.4),
+    inset 0 1px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.3));
+}
+
+/* Playlist/album hero — keep Spotify's accent, drop only the flat wash */
+html.lg-enabled :is([class*="entityHeader-backgroundColor"], [class*="entityHeader-overlay"]) {
+  background: transparent !important;
+}
+html.lg-enabled [class*="entityHeader-headerText"] {
+  text-shadow: 0 6px 30px rgb(0 0 0 / 0.55);
+}
+
+html.lg-enabled :is([class*="actionBar-ActionBar"], [data-testid="action-bar-row"]) {
+  border-radius: 999px !important;
+  padding: 6px 12px;
+  width: fit-content;
+  gap: 10px;
+  transition: transform 0.4s var(--lg-ease-spring);
+}
+
+/* Play button — hero glass orb */
+html.lg-enabled :is([class*="playButton-PlayButton"], [data-testid="play-button"]) {
+  border-radius: 50% !important;
+  box-shadow:
+    inset 0 2px 2px rgb(255 255 255 / calc(var(--lg-spec) * 0.55)),
+    inset 0 -8px 20px rgb(0 0 0 / 0.28),
+    0 14px 36px hsl(var(--lg-tint-h) 90% 45% / 0.4),
+    0 12px 30px rgb(0 0 0 / 0.45) !important;
+  transition: transform 0.4s var(--lg-ease-spring), box-shadow 0.4s var(--lg-ease) !important;
+}
+html.lg-enabled :is([class*="playButton-PlayButton"], [data-testid="play-button"]):hover {
+  transform: scale(1.08);
+}
+html.lg-enabled :is([class*="playButton-PlayButton"], [data-testid="play-button"]):active {
+  transform: scale(0.94);
+}
+
+/* Track rows */
+html.lg-enabled :is([class*="trackList-trackListRow"], [role="row"]) {
+  border-radius: 12px !important;
+  transition: background-color 0.3s var(--lg-ease), transform 0.3s var(--lg-ease);
+}
+html.lg-enabled :is([class*="trackList-trackListRow"], [role="row"]):hover {
+  transform: scale(1.005);
+}
+html.lg-enabled [class*="trackList-trackListRow"][aria-selected="true"],
+html.lg-enabled [role="row"][aria-selected="true"] {
+  background:
+    linear-gradient(90deg, hsl(var(--lg-tint-h) 90% 70% / 0.16), transparent 70%),
+    rgb(255 255 255 / 0.08) !important;
+  border: 1px solid rgb(255 255 255 / 0.12) !important;
+}
+
+/* ============================================================================
+   6 · PLAYER DOCK — floating glass widget (reference: "Perfect" player card)
+   All-corner floating dock · top-light→bottom-dark glass · chromatic edge
+   fringe (player filter) · bright rim · thin progress with visible knob.
+   ========================================================================== */
+
+/* --- The dock itself ------------------------------------------------------ */
+html.lg-enabled :is(
+  footer:not(main footer),
+  [role="contentinfo"],
+  [data-testid="now-playing-bar"],
+  [class*="nowPlayingBar"]
+) {
+  --filter-player-id: url(#lg-glass-filter-player);
+  border-radius: calc(var(--lg-radius) + 6px) !important;
+  border: 1px solid rgb(255 255 255 / 0.38) !important;
+  margin: 0 14px 14px;
+  min-height: 96px;
+  padding: 10px 20px;
+  background:
+    /* top sheen → deep base, like the reference widget */
+    linear-gradient(180deg,
+      rgb(255 255 255 / calc(var(--lg-spec) * 0.22)) 0%,
+      rgb(255 255 255 / 0.03) 34%,
+      rgb(2 4 12 / 0.22) 72%,
+      rgb(2 4 12 / 0.38) 100%),
+    hsl(228 30% 7% / 0.34) !important;
+  -webkit-backdrop-filter:
+    var(--filter-player-id) saturate(1.45) blur(calc(var(--lg-blur) * 0.55)) brightness(1.02);
+  backdrop-filter:
+    var(--filter-player-id) saturate(1.45) blur(calc(var(--lg-blur) * 0.55)) brightness(1.02);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    inset 1px 0 2px rgb(255 255 255 / 0.18),
+    inset -1px 0 2px rgb(255 255 255 / 0.18),
+    inset 0 -1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 24px rgb(2 4 12 / 0.18),
+    0 26px 64px rgb(0 0 0 / 0.5),
+    0 8px 22px rgb(0 0 0 / 0.35) !important;
+  transition: transform 0.5s var(--lg-ease), box-shadow 0.5s var(--lg-ease);
+}
+
+html.lg-enabled :is(
+  footer:not(main footer),
+  [role="contentinfo"],
+  [data-testid="now-playing-bar"],
+  [class*="nowPlayingBar"]
+):hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 1px 0 2px rgb(255 255 255 / 0.2),
+    inset -1px 0 2px rgb(255 255 255 / 0.2),
+    inset 0 -1px 0 rgb(255 255 255 / 0.16),
+    0 32px 76px rgb(0 0 0 / 0.52),
+    0 10px 26px hsl(var(--lg-tint-h) 90% 45% / 0.2) !important;
+}
+
+/* Keep Spotify's own bar backgrounds from covering the glass */
+html.lg-enabled :is(
+  footer:not(main footer) > div,
+  [data-testid="now-playing-bar"] > div,
+  [class*="nowPlayingBar"] > div,
+  [class*="nowPlayingBar-background"],
+  [class*="now-playing-bar"] .main-nowPlayingBar-nowPlayingBar
+) {
+  background: transparent !important;
+}
+
+/* --- Album art ----------------------------------------------------------- */
+html.lg-enabled :is(
+  [class*="nowPlayingWidget-coverArt"],
+  [class*="coverArt"],
+  footer:not(main footer) .cover-art
+) {
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow:
+    0 12px 28px rgb(0 0 0 / 0.5),
+    0 4px 10px rgb(0 0 0 / 0.35),
+    inset 0 1px 1px rgb(255 255 255 / 0.22) !important;
+}
+
+/* --- Track meta (title / artist) ----------------------------------------- */
+html.lg-enabled footer:not(main footer) :is(
+  [class*="trackInfo-name"],
+  [class*="trackinfo__name"],
+  a[data-testid="context-item-link"]
+) {
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  letter-spacing: 0.1px;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.45);
+}
+
+html.lg-enabled footer:not(main footer) :is(
+  [class*="trackInfo-artists"],
+  [class*="trackinfo__artists"],
+  span[data-testid="context-item-info-subtitles"]
+) {
+  font-size: 12.5px !important;
+  color: rgb(255 255 255 / 0.66) !important;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.4);
+}
+
+/* --- Progress & volume — thin track, bright fill, always-visible knob.
+       Every slider WRAPPER is chrome-free (no boxes around text/glyphs);
+       the visible line exists only on the actual slider roots. ---------- */
+html.lg-enabled footer:not(main footer) :is(
+  [class*="playback-bar"],
+  [class*="volume-bar"],
+  [class*="progress-bar"],
+  [data-testid="progress-bar"],
+  [data-testid="volume-bar"]
+) {
+  border: 0 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* the visible track line: slider roots + their inner wrapper */
+html.lg-enabled footer:not(main footer) :is(
+  .playback-bar,
+  .volume-bar,
+  [data-testid="progress-bar"],
+  [data-testid="volume-bar"],
+  [class*="slider-wrapper"]
+) {
+  background-color: rgb(255 255 255 / 0.22) !important;
+  background-image: none !important;
+  border-radius: 999px !important;
+}
+html.lg-enabled footer:not(main footer) :is(.playback-bar, [data-testid="progress-bar"]) {
+  height: 5px !important;
+}
+html.lg-enabled footer:not(main footer) :is(.volume-bar, [data-testid="volume-bar"]) {
+  height: 4px !important;
+  max-width: 110px;
+}
+
+html.lg-enabled footer:not(main footer) :is(
+  [class*="progress-bar-fill"],
+  [data-testid="progress-bar-fill"],
+  [class*="volume-bar"] [class*="slider-fill"]
+) {
+  background: rgb(255 255 255 / 0.92) !important;
+  box-shadow: 0 0 10px rgb(255 255 255 / 0.45) !important;
+  border-radius: 999px !important;
+}
+
+html.lg-enabled footer:not(main footer) :is(
+  [class*="slider-handle"],
+  [class*="SliderHandle"]
+) {
+  background: rgb(255 255 255 / 0.98) !important;
+  border-radius: 50% !important;
+  width: 13px !important;
+  height: 13px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: scale(1) !important;
+  box-shadow:
+    0 2px 8px rgb(0 0 0 / 0.45),
+    0 0 0 3px rgb(255 255 255 / 0.12),
+    inset 0 1px 1px rgb(255 255 255 / 0.95) !important;
+}
+
+/* Timestamps */
+html.lg-enabled footer:not(main footer) :is(
+  [class*="playback-bar__progress-time"],
+  [class*="progress-time"],
+  [data-testid="playback-position"],
+  [data-testid="playback-duration"]
+) {
+  font-size: 11px !important;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.6) !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+
+/* --- Transport controls — big white glyphs, spread like the reference ----- */
+html.lg-enabled footer:not(main footer) :is(
+  [class*="player-controls__buttons"],
+  [class*="player-controls"] [class*="buttons"]
+) {
+  display: flex;
+  width: 100%;
+  max-width: 520px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+html.lg-enabled footer:not(main footer) :is(
+  [class*="player-controls"] button,
+  [class*="control-button"]
+) {
+  color: rgb(255 255 255 / 0.92) !important;
+  transition: transform 0.35s var(--lg-ease-spring), filter 0.35s var(--lg-ease), color 0.3s;
+}
+html.lg-enabled footer:not(main footer) :is(
+  [class*="player-controls"] button,
+  [class*="control-button"]
+):hover {
+  transform: scale(1.14);
+  color: #fff !important;
+}
+html.lg-enabled footer:not(main footer) :is(
+  [class*="player-controls"] button,
+  [class*="control-button"]
+):active {
+  transform: scale(0.92);
+}
+
+/* Play/pause — the emphasized glyph of the reference widget */
+html.lg-enabled footer:not(main footer) :is(
+  [data-testid="control-button-playpause"],
+  [class*="control-button--play"],
+  [aria-label="Play"],
+  [aria-label="Pause"]
+) {
+  position: relative;
+  color: #fff !important;
+}
+html.lg-enabled footer:not(main footer) :is(
+  [data-testid="control-button-playpause"],
+  [class*="control-button--play"],
+  [aria-label="Play"],
+  [aria-label="Pause"]
+) svg {
+  filter: drop-shadow(0 0 10px rgb(255 255 255 / 0.55)) drop-shadow(0 2px 6px rgb(0 0 0 / 0.35));
+}
+html.lg-enabled footer:not(main footer) :is(
+  [data-testid="control-button-playpause"],
+  [class*="control-button--play"],
+  [aria-label="Play"],
+  [aria-label="Pause"]
+) svg path,
+html.lg-enabled footer:not(main footer) :is(
+  [data-testid="control-button-playpause"],
+  [class*="control-button--play"],
+  [aria-label="Play"],
+  [aria-label="Pause"]
+) svg {
+  transform: scale(1.22);
+  transform-origin: center;
+}
+
+/* Shuffle/repeat active states — pull Spotify green toward the glass white */
+html.lg-enabled footer:not(main footer) :is(
+  [class*="control-button--shuffle"][aria-checked="true"],
+  [class*="control-button--repeat"][aria-checked="true"],
+  [class*="control-button--active"]
+) {
+  color: #fff !important;
+  filter: drop-shadow(0 0 8px rgb(255 255 255 / 0.5));
+}
+
+/* Right-side utility buttons (lyrics / queue / devices) — muted */
+html.lg-enabled footer:not(main footer) :is(
+  [class*="player-controls__right"] button,
+  [class*="control-button-wrapper"]:not([class*="play"]) button
+) {
+  color: rgb(255 255 255 / 0.55) !important;
+}
+html.lg-enabled footer:not(main footer) :is(
+  [class*="player-controls__right"] button,
+  [class*="control-button-wrapper"]:not([class*="play"]) button
+):hover {
+  color: rgb(255 255 255 / 0.95) !important;
+}
+
+/* --- Compact viewport: slimmer dock, image-like proportions --------------- */
+@media (max-width: 900px) {
+  html.lg-enabled :is(
+    footer:not(main footer),
+    [data-testid="now-playing-bar"],
+    [class*="nowPlayingBar"]
+  ) {
+    min-height: 84px;
+    padding: 8px 14px;
+    margin: 0 10px 10px;
+    border-radius: var(--lg-radius) !important;
+  }
+}
+
+/* ============================================================================
+   7 · MENUS, MODALS, TOOLTIPS
+   ========================================================================== */
+
+html.lg-enabled :is(
+  [class*="contextMenu-menu"],
+  [data-testid="context-menu"],
+  [class*="dropDown-dropDown"],
+  [role="menu"]
+) {
+  border-radius: 22px !important;
+  overflow: hidden;
+  animation: lg-pop-in 0.32s var(--lg-ease-spring);
+}
+
+html.lg-enabled :is([class*="contextMenu-menuItem"], [role="menuitem"]) {
+  border-radius: 12px !important;
+  margin: 2px 6px;
+  transition: background-color 0.25s var(--lg-ease), transform 0.25s var(--lg-ease);
+}
+html.lg-enabled :is([class*="contextMenu-menuItem"], [role="menuitem"]):hover {
+  transform: scale(1.015);
+  background: rgb(255 255 255 / 0.12) !important;
+}
+
+html.lg-enabled :is([class*="main-modal-container"], [data-testid="modal"], [role="dialog"]) {
+  border-radius: calc(var(--lg-radius) + 8px) !important;
+  animation: lg-pop-in 0.42s var(--lg-ease-spring);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / calc(var(--lg-spec) * 0.18)), rgb(255 255 255 / 0) 42%),
+    linear-gradient(
+      125deg,
+      hsl(var(--lg-tint-h) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 1.3)),
+      hsl(calc(var(--lg-tint-h) + 32) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 0.85))
+    ),
+    hsl(240 14% 6% / calc(var(--lg-frost) * 1.3 + 0.14)) !important;
+}
+
+html.lg-enabled :is([class*="modal-scrim"], [class*="main-modal-scrim"]) {
+  background: rgb(4 2 12 / 0.55) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  backdrop-filter: blur(8px) saturate(1.1);
+}
+
+@keyframes lg-pop-in {
+  0%   { opacity: 0; transform: translateY(12px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ============================================================================
+   8b · LIQUID BUTTONS — lens-button recipe (family B) + refraction (A)
+   Six-part dual-opposing inset bevel + blurred glare caustics + hover ripple.
+   ========================================================================== */
+
+:root {
+  --filter-btn-id: url(#lg-glass-filter-btn);
+}
+
+/* Hero / labeled actions + round icon buttons */
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="actionBar-ActionBar"] [role="button"],
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / calc(var(--lg-spec) * 0.16)), rgb(255 255 255 / 0) 58%),
+    hsl(var(--lg-tint-h) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 0.85)),
+    hsl(240 12% 6% / calc(var(--lg-frost) * 0.9 + 0.06));
+  -webkit-backdrop-filter:
+    var(--filter-btn-id) saturate(var(--lg-sat)) blur(calc(var(--lg-blur) * 0.28));
+  backdrop-filter:
+    var(--filter-btn-id) saturate(var(--lg-sat)) blur(calc(var(--lg-blur) * 0.28));
+  border: 1px solid rgb(255 255 255 / calc(var(--lg-border) * 1.1)) !important;
+  border-radius: 999px !important;
+  box-shadow:
+    /* dual opposing speculars — the liquid-glass tell */
+    inset 2px -2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 0.85)),
+    inset -2px 2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 0.85)),
+    inset 6px -6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.5)),
+    inset -6px 6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.5)),
+    /* inner core shade */
+    inset 0 0 3px rgb(0 0 0 / 0.5),
+    /* ambient drop + tinted halo */
+    0 10px 24px rgb(0 0 0 / 0.32),
+    0 2px 6px hsl(var(--lg-tint-h) 90% 50% / 0.18) !important;
+  transition:
+    transform 0.38s var(--lg-ease-spring),
+    box-shadow 0.38s var(--lg-ease),
+    border-color 0.38s var(--lg-ease) !important;
+}
+
+/* Glare layers — blurred gradient clamped into caustics by the bevels */
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="actionBar-ActionBar"] [role="button"],
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+)::before,
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="actionBar-ActionBar"] [role="button"],
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* :before — dark ambient caustic hugging the inner top curve */
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+)::before {
+  inset: 22% 6% 6% 6%;
+  border-radius: 999px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  filter: blur(8px);
+  opacity: 0.75;
+}
+
+/* :after — diagonal perimeter glare band (45°, transparent center) */
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+)::after {
+  inset: -2px;
+  background: linear-gradient(
+    45deg,
+    rgb(255 255 255 / calc(var(--lg-spec) * 0.55)) 0%,
+    transparent 22%,
+    transparent 78%,
+    rgb(255 255 255 / calc(var(--lg-spec) * 0.55)) 100%
+  );
+  filter: blur(7px);
+  opacity: 0.85;
+  mix-blend-mode: screen;
+}
+
+/* Hover / press — lift, glare shift, brighter rim (ripple lives in the filter) */
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="actionBar-ActionBar"] [role="button"],
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+):hover {
+  transform: translateY(-2px) scale(1.045);
+  border-color: rgb(255 255 255 / 0.55) !important;
+  box-shadow:
+    inset 2px -2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 1)),
+    inset -2px 2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 1)),
+    inset 6px -6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.6)),
+    inset -6px 6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.6)),
+    inset 0 0 3px rgb(0 0 0 / 0.45),
+    0 18px 38px hsl(var(--lg-tint-h) 90% 45% / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.38) !important;
+}
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+):hover::after {
+  opacity: 1;
+  filter: blur(5px);
+}
+
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="actionBar-ActionBar"] button,
+  [class*="player-controls"] button,
+  [class*="control-button"],
+  header:not(main header) button
+):active {
+  transform: scale(0.94);
+  transition-duration: 0.08s !important;
+}
+
+/* Round icon buttons (play orb, nav arrows) — circular geometry + contrast punch */
+html.lg-enabled :is(
+  [class*="playButton-PlayButton"],
+  [data-testid="play-button"],
+  [data-testid="topbar-back-button"],
+  [data-testid="topbar-forward-button"],
+  [class*="topBar-credits"],
+  [class*="control-button"].control-button--circled,
+  [class*="player-controls"] [data-testid="control-button-playpause"]
+) {
+  border-radius: 50% !important;
+  aspect-ratio: 1;
+  filter: contrast(1.18) saturate(1.08) brightness(0.98);
+}
+
+/* ============================================================================
+   9 · BUTTONS / INPUTS (base)
+   ========================================================================== */
+
+html.lg-enabled :is(
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"]
+) {
+  border-radius: 999px !important;
+  transition:
+    transform 0.35s var(--lg-ease-spring),
+    box-shadow 0.35s var(--lg-ease),
+    filter 0.35s var(--lg-ease);
+}
+html.lg-enabled :is(
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"]
+):hover {
+  transform: translateY(-2px);
+}
+html.lg-enabled :is(
+  [class*="main-button-button"],
+  button[data-encore-id="buttonPrimary"],
+  button[data-encore-id="buttonSecondary"]
+):active {
+  transform: scale(0.96);
+}
+
+html.lg-enabled :is(
+  [class*="inputContainer"] input,
+  input[type="text"],
+  input[type="search"]
+) {
+  border-radius: 12px !important;
+  border: 1px solid rgb(255 255 255 / calc(var(--lg-border) * 0.9)) !important;
+  background: rgb(255 255 255 / 0.08) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: border-color 0.3s var(--lg-ease), box-shadow 0.3s var(--lg-ease);
+}
+html.lg-enabled :is(
+  [class*="inputContainer"] input,
+  input[type="text"],
+  input[type="search"]
+):focus {
+  border-color: rgb(255 255 255 / 0.6) !important;
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.25),
+    0 0 0 3px hsl(var(--lg-tint-h) 90% 70% / 0.3);
+}
+
+/* ============================================================================
+   9 · SCROLLBARS
+   ========================================================================== */
+
+html.lg-enabled ::-webkit-scrollbar { width: 10px; height: 10px; }
+html.lg-enabled ::-webkit-scrollbar-track { background: transparent; }
+html.lg-enabled ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+html.lg-enabled ::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 0.32);
+  background-clip: padding-box;
+}
+
+/* ============================================================================
+   10 · STATUS TOAST (content.js)
+   ========================================================================== */
+
+.lg-toast {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  z-index: 2147483647;
+  transform: translate(-50%, -18px) scale(0.96);
+  padding: 13px 24px;
+  border-radius: 999px;
+  font: 650 13px/1.25 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.3px;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s var(--lg-ease), transform 0.45s var(--lg-ease-spring);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0)),
+    hsl(var(--lg-tint-h, 258) 70% 40% / 0.55) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgb(255 255 255 / 0.34) !important;
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.4),
+    0 18px 44px rgb(0 0 0 / 0.45);
+}
+.lg-toast.lg-toast--show {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* ============================================================================
+   11 · RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 1280px) {
+  html.lg-enabled { --lg-blur: 16px; --lg-radius: 24px; }
+}
+@media (max-width: 1024px) {
+  html.lg-enabled { --lg-blur: 13px; --lg-radius: 22px; }
+  html.lg-enabled :is([class*="topBar-container"], [data-testid="topbar"], header:not(main header)) {
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+  html.lg-enabled :is(footer:not(main footer), [data-testid="now-playing-bar"], [class*="nowPlayingBar"]) {
+    margin: 0 8px 6px;
+    min-height: 78px;
+  }
+}
+@media (max-width: 768px) {
+  html.lg-enabled { --lg-blur: 10px; --lg-radius: 18px; --lg-spec: 0.5; }
+  html.lg-enabled :is(
+    [class*="main-card"],
+    [class*="x-categoryCard"],
+    [class*="card-card"],
+    [data-testid="card-container"],
+    [class*="trackList-trackListRow"]:hover,
+    [role="row"]:hover
+  ) {
+    -webkit-backdrop-filter: blur(6px) saturate(var(--lg-sat));
+    backdrop-filter: blur(6px) saturate(var(--lg-sat));
+  }
+  html.lg-enabled :is(footer:not(main footer), [data-testid="now-playing-bar"], [class*="nowPlayingBar"]) {
+    min-height: 70px;
+    border-radius: var(--lg-radius);
+    margin: 0 8px 8px;
+  }
+}
+@media (max-width: 560px) {
+  html.lg-enabled :is([class*="topBar-container"], [data-testid="topbar"], header:not(main header)) {
+    margin: 6px;
+    border-radius: 16px !important;
+    border-top: 1px solid rgb(255 255 255 / var(--lg-border)) !important;
+    top: 6px !important;
+    position: fixed;
+  }
+  html.lg-enabled :is(footer:not(main footer), [data-testid="now-playing-bar"], [class*="nowPlayingBar"]) {
+    margin: 0 6px;
+    border-radius: var(--lg-radius) !important;
+    border-bottom: 1px solid rgb(255 255 255 / var(--lg-border)) !important;
+  }
+}
+
+/* ============================================================================
+   12 · MOTION SAFETY
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html.lg-enabled *,
+  html.lg-enabled *::before,
+  html.lg-enabled *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html.lg-enabled.lg-ambient::before { animation: none; }
+}
+
+/* ============================================================================
+   13 · FALLBACK — no backdrop-filter support
+   ========================================================================== */
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html.lg-enabled .lg-glass,
+  html.lg-enabled :is(
+    header:not(main header),
+    footer:not(main footer),
+    aside:not(main aside),
+    [class*="topBar-container"],
+    [class*="nowPlayingBar"],
+    [class*="Root__nav-bar"],
+    [class*="Root__right-sidebar"],
+    [class*="contextMenu-menu"],
+    [class*="main-modal-container"]
+  ) {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0)),
+      hsl(240 14% 8% / 0.93) !important;
+  }
+}
+
+/* ============================================================================
+   16 · CLEAN TEXT & LIST RULE — "no text may have such a box".
+   GLOBAL (not footer-scoped — the bar root is not always a <footer> tag).
+   Nothing around the song info, sliders or glyph clusters may carry border /
+   fill / shadow chrome. Doubled .lg-enabled front + last position so this
+   outranks every earlier recipe, including :hover + !important rules.
+   ========================================================================== */
+
+html.lg-enabled.lg-enabled :is(
+  [class*="trackInfo"],
+  [class*="trackinfo"],
+  [class*="nowPlayingWidget"],
+  [data-testid="now-playing-widget"],
+  [data-testid="context-item-link"],
+  [data-testid="context-item-info"],
+  [data-testid="context-item-info-subtitles"],
+  [class*="contextItem"],
+  [class*="context-item"],
+  [class*="volume-bar"],
+  [class*="playback-bar"],
+  [class*="progress-bar"],
+  [data-testid="volume-bar"],
+  [data-testid="progress-bar"],
+  [class*="ExtraControls"]
+) {
+  border: 0 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* kill any leftover bevel/glare pseudo layers on those */
+html.lg-enabled.lg-enabled :is(
+  [class*="trackInfo"],
+  [class*="trackinfo"],
+  [class*="nowPlayingWidget"],
+  [class*="contextItem"],
+  [class*="context-item"],
+  [class*="volume-bar"],
+  [class*="playback-bar"],
+  [class*="ExtraControls"]
+)::before,
+html.lg-enabled.lg-enabled :is(
+  [class*="trackInfo"],
+  [class*="trackinfo"],
+  [class*="nowPlayingWidget"],
+  [class*="contextItem"],
+  [class*="context-item"],
+  [class*="volume-bar"],
+  [class*="playback-bar"],
+  [class*="ExtraControls"]
+)::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* --- descendant net: every inner wrapper/span inside the song-info and
+       utility clusters is chrome-free too (this is what catches the box on
+       the song name no matter which inner element carries it). Buttons,
+       links, slider roots/fills/knobs, images and the cover art survive. --- */
+html.lg-enabled.lg-enabled :is(
+  [class*="nowPlayingWidget"],
+  [data-testid="now-playing-widget"],
+  [class*="trackInfo"],
+  [class*="trackinfo"],
+  [class*="contextItem"],
+  [class*="context-item"],
+  [class*="ExtraControls"]
+) *:not(button):not([role="button"]):not(a):not(input):not(img):not(svg):not(video)
+  :not([class*="coverArt"]):not([data-testid="volume-bar"]):not([data-testid="progress-bar"])
+  :not(.volume-bar):not(.playback-bar):not([class*="slider-"]):not([class*="Slider"])
+  :not([class*="Fill"]):not([class*="volumeBar"]):not([class*="playbackBar"]) {
+  border: 0 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* --- re-assert the visible slider pieces (blanket above just cleared them) */
+html.lg-enabled.lg-enabled :is(
+  .playback-bar,
+  .volume-bar,
+  [data-testid="progress-bar"],
+  [data-testid="volume-bar"],
+  [class*="slider-wrapper"]
+) {
+  background-color: rgb(255 255 255 / 0.22) !important;
+  border-radius: 999px !important;
+}
+html.lg-enabled.lg-enabled :is(
+  [class*="progress-bar-fill"],
+  [data-testid="progress-bar-fill"],
+  [class*="slider-fill"]
+) {
+  background: rgb(255 255 255 / 0.92) !important;
+  box-shadow: 0 0 10px rgb(255 255 255 / 0.45) !important;
+  border-radius: 999px !important;
+}
+html.lg-enabled.lg-enabled :is(
+  [class*="slider-handle"],
+  [class*="SliderHandle"]
+) {
+  background: rgb(255 255 255 / 0.98) !important;
+  border-radius: 50% !important;
+  width: 13px !important;
+  height: 13px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow:
+    0 2px 8px rgb(0 0 0 / 0.45),
+    0 0 0 3px rgb(255 255 255 / 0.12),
+    inset 0 1px 1px rgb(255 255 255 / 0.95) !important;
+}
+
+/* --- album art keeps its own finish (never a text box) --------------------- */
+html.lg-enabled.lg-enabled :is(
+  [class*="nowPlayingWidget-coverArt"],
+  [class*="coverArt"],
+  .cover-art
+) {
+  border: 0 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 14px !important;
+  box-shadow:
+    0 12px 28px rgb(0 0 0 / 0.5),
+    0 4px 10px rgb(0 0 0 / 0.35),
+    inset 0 1px 1px rgb(255 255 255 / 0.22) !important;
+}

@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Liquid Glass for Spotify — Interactive Preview</title>
+<style>
+  /* ======================================================================
+     LIQUID GLASS FOR SPOTIFY · interactive preview
+     Same engine as the extension: SVG displacement refraction + frost +
+     chromatic edge split. All art is CSS — runs fully offline.
+     ====================================================================== */
+  :root {
+    --filter-id: url(#lg-glass-filter);
+    --filter-player-id: url(#lg-glass-filter-player);
+    --lg-frost: 0.12;
+    --lg-sat: 1.3;
+    --lg-blur: 18px;
+    --lg-radius: 26px;
+    --lg-tint-h: 258;
+    --lg-tint-s: 90%;
+    --lg-tint-l: 62%;
+    --lg-tint-a: 0.14;
+    --lg-spec: 0.55;
+    --lg-border: 0.28;
+    --lg-disp: 24;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --text: #f6f4ff;
+    --dim: rgb(235 231 255 / 0.62);
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+            "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--text);
+    overflow: hidden;
+    background: #06040e;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  /* ---------- ambient aurora backdrop ---------- */
+  .aurora {
+    position: fixed;
+    inset: -20%;
+    z-index: 0;
+    background:
+      radial-gradient(42% 34% at 16% 18%, rgb(124 92 255 / 0.75), transparent 66%),
+      radial-gradient(38% 32% at 86% 12%, rgb(255 95 162 / 0.55), transparent 70%),
+      radial-gradient(48% 40% at 78% 86%, rgb(56 189 248 / 0.55), transparent 72%),
+      radial-gradient(36% 32% at 12% 88%, rgb(255 158 64 / 0.42), transparent 72%),
+      radial-gradient(30% 26% at 50% 50%, rgb(99 102 241 / 0.5), transparent 74%),
+      linear-gradient(170deg, #140c33 0%, #0a0720 55%, #06040e 100%);
+    animation: aurora-drift 22s ease-in-out infinite alternate;
+    filter: saturate(1.15);
+  }
+  .aurora::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(1px 1px at 12% 24%, rgb(255 255 255 / 0.7), transparent 50%),
+      radial-gradient(1px 1px at 38% 12%, rgb(255 255 255 / 0.55), transparent 50%),
+      radial-gradient(1.5px 1.5px at 68% 28%, rgb(255 255 255 / 0.6), transparent 50%),
+      radial-gradient(1px 1px at 84% 62%, rgb(255 255 255 / 0.5), transparent 50%),
+      radial-gradient(1.5px 1.5px at 22% 72%, rgb(255 255 255 / 0.55), transparent 50%),
+      radial-gradient(1px 1px at 56% 88%, rgb(255 255 255 / 0.45), transparent 50%);
+  }
+  @keyframes aurora-drift {
+    from { transform: translate3d(-1.5%, -1%, 0) scale(1) rotate(0deg); }
+    to   { transform: translate3d(1.5%, 1.2%, 0) scale(1.06) rotate(1.2deg); }
+  }
+
+  /* ---------- glass recipe (the product) ---------- */
+  .glass {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / calc(var(--lg-spec) * 0.13)), rgb(255 255 255 / 0) 46%),
+      hsl(var(--lg-tint-h) var(--lg-tint-s) var(--lg-tint-l) / var(--lg-tint-a)),
+      hsl(240 12% 5% / var(--lg-frost));
+    -webkit-backdrop-filter: var(--filter-id) saturate(var(--lg-sat)) blur(var(--lg-blur));
+    backdrop-filter: var(--filter-id) saturate(var(--lg-sat)) blur(var(--lg-blur));
+    border: 1px solid rgb(255 255 255 / var(--lg-border));
+    box-shadow:
+      inset 0 0 2px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.35)),
+      inset 0 0 10px 4px rgb(255 255 255 / calc(var(--lg-spec) * 0.15)),
+      inset 0 4px 16px rgb(17 17 26 / 0.05),
+      inset 0 8px 24px rgb(17 17 26 / 0.05),
+      inset 0 6px 56px rgb(17 17 26 / 0.05),
+      0 12px 32px rgb(0 0 0 / 0.38),
+      0 2px 8px rgb(0 0 0 / 0.22);
+  }
+  .glass-lite {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / calc(var(--lg-spec) * 0.1)), rgb(255 255 255 / 0) 55%),
+      hsl(var(--lg-tint-h) var(--lg-tint-s) var(--lg-tint-l) / calc(var(--lg-tint-a) * 0.7)),
+      hsl(240 12% 5% / calc(var(--lg-frost) * 0.85));
+    -webkit-backdrop-filter: saturate(var(--lg-sat)) blur(calc(var(--lg-blur) * 0.5));
+    backdrop-filter: saturate(var(--lg-sat)) blur(calc(var(--lg-blur) * 0.5));
+    border: 1px solid rgb(255 255 255 / calc(var(--lg-border) * 0.8));
+    box-shadow:
+      inset 0 1px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.3)),
+      0 6px 18px rgb(0 0 0 / 0.28);
+    transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease);
+  }
+
+  .glass-surface__filter {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* ---------- app shell ---------- */
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 240px 1fr 300px;
+    grid-template-rows: 64px 1fr 92px;
+    grid-template-areas:
+      "top   top   top"
+      "side  main  right"
+      "player player player";
+    gap: 12px;
+    height: 100vh;
+    padding: 12px;
+    padding-bottom: 14px;
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    grid-area: top;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 16px;
+    border-radius: calc(var(--lg-radius) + 2px);
+    animation: rise 0.5s var(--spring) both;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 750;
+    letter-spacing: 0.2px;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .logo .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    background:
+      linear-gradient(160deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.05)),
+      linear-gradient(135deg, hsl(var(--lg-tint-h) 90% 64%), hsl(calc(var(--lg-tint-h) + 42) 92% 52%));
+    box-shadow:
+      inset 0 1px 1px rgb(255 255 255 / 0.55),
+      0 8px 18px hsl(var(--lg-tint-h) 90% 45% / 0.5);
+    color: #fff;
+    font-size: 16px;
+  }
+  .nav-arrows { display: flex; gap: 8px; }
+  .round-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgb(255 255 255 / calc(var(--lg-border) * 1.1));
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03)),
+      hsl(240 12% 5% / calc(var(--lg-frost) * 0.9));
+    -webkit-backdrop-filter: saturate(var(--lg-sat)) blur(8px);
+    backdrop-filter: saturate(var(--lg-sat)) blur(8px);
+    color: var(--text);
+    font-size: 15px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: transform 0.35s var(--spring), box-shadow 0.35s var(--ease);
+    box-shadow:
+      inset 2px -2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 0.8)),
+      inset -2px 2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 0.8)),
+      inset 5px -5px 1px -5px rgb(255 255 255 / calc(var(--lg-spec) * 0.45)),
+      inset -5px 5px 1px -5px rgb(255 255 255 / calc(var(--lg-spec) * 0.45)),
+      inset 0 0 3px rgb(0 0 0 / 0.45),
+      0 8px 20px rgb(0 0 0 / 0.3);
+    filter: contrast(1.15) saturate(1.06);
+  }
+  .round-btn:hover {
+    transform: translateY(-2px) scale(1.08);
+    box-shadow:
+      inset 2px -2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 1)),
+      inset -2px 2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 1)),
+      0 12px 26px hsl(var(--lg-tint-h) 90% 45% / 0.28),
+      0 10px 22px rgb(0 0 0 / 0.35);
+  }
+  .round-btn:active { transform: scale(0.92); }
+
+  .search {
+    flex: 1;
+    max-width: 480px;
+    height: 42px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 18px;
+    color: var(--dim);
+    font-size: 13.5px;
+  }
+  .search .glass-input {
+    all: unset;
+    flex: 1;
+    color: var(--text);
+    font-size: 13.5px;
+    cursor: text;
+    user-select: text;
+  }
+  .search .glass-input::placeholder { color: var(--dim); }
+
+  .user-pill {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 4px 14px 4px 4px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: transform 0.35s var(--spring);
+  }
+  .user-pill:hover { transform: translateY(-2px); }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background:
+      linear-gradient(135deg, #ffd36e, #ff6f91 55%, #845ef7);
+    box-shadow: inset 0 1px 2px rgb(255 255 255 / 0.55), 0 4px 10px rgb(0 0 0 / 0.3);
+  }
+
+  /* ---------- sidebar ---------- */
+  .sidebar {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--lg-radius);
+    padding: 16px 12px;
+    overflow: hidden;
+    animation: rise 0.55s var(--spring) 0.05s both;
+  }
+  .side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px 12px;
+  }
+  .side-head h2 {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 750;
+  }
+  .side-link {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 10px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgb(255 255 255 / 0.85);
+    cursor: pointer;
+    transition: transform 0.35s var(--ease), background-color 0.3s var(--ease);
+  }
+  .side-link .ico { width: 22px; text-align: center; opacity: 0.9; }
+  .side-link:hover {
+    transform: translateX(4px);
+    background: rgb(255 255 255 / 0.08);
+  }
+  .side-link.is-active {
+    background:
+      linear-gradient(90deg, hsl(var(--lg-tint-h) 90% 62% / 0.32), transparent 80%);
+    border: 1px solid rgb(255 255 255 / 0.16);
+    box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.18);
+  }
+  .side-scroll {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 8px;
+    padding-right: 2px;
+  }
+  .track-mini {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 8px;
+    border-radius: 13px;
+    cursor: pointer;
+    transition: transform 0.35s var(--ease), background-color 0.3s var(--ease);
+  }
+  .track-mini:hover {
+    transform: translateX(4px);
+    background: rgb(255 255 255 / 0.07);
+  }
+  .art {
+    border-radius: 10px;
+    flex: 0 0 auto;
+    box-shadow: 0 6px 14px rgb(0 0 0 / 0.35), inset 0 1px 1px rgb(255 255 255 / 0.25);
+  }
+  .art--sm { width: 40px; height: 40px; }
+  .art--md { width: 52px; height: 52px; border-radius: 12px; }
+  .art--lg { width: 100%; aspect-ratio: 1; border-radius: calc(var(--lg-radius) - 8px); }
+  .track-mini .meta { min-width: 0; }
+  .track-mini .meta b {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 650;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .track-mini .meta small {
+    display: block;
+    font-size: 11px;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* CSS "album art" palettes */
+  .a1 { background: linear-gradient(135deg, #6a85ff, #b06ab3 60%, #ff6f91); }
+  .a2 { background: linear-gradient(135deg, #f6d365, #fda085 55%, #ff6f91); }
+  .a3 { background: linear-gradient(135deg, #00c6fb, #7366ff 65%, #b06ab3); }
+  .a4 { background: linear-gradient(135deg, #43e97b, #38f9d7 50%, #4facfe); }
+  .a5 { background: linear-gradient(135deg, #fa709a, #fee140 70%); }
+  .a6 { background: linear-gradient(135deg, #30cfd0, #5b247a 75%); }
+  .a7 { background: linear-gradient(135deg, #ff9a9e, #fad0c4 50%, #a18cd1); }
+  .a8 { background: linear-gradient(135deg, #4facfe, #00f2fe 60%, #43e97b); }
+  .a9 { background: linear-gradient(135deg, #667eea, #764ba2 60%, #f953c6); }
+  .a10 { background: linear-gradient(135deg, #f83600, #f9d423 80%); }
+
+  /* ---------- main view ---------- */
+  .main {
+    grid-area: main;
+    border-radius: var(--lg-radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: rise 0.6s var(--spring) 0.1s both;
+  }
+  .main-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 22px 10px;
+    user-select: none;
+  }
+  .hero {
+    display: flex;
+    align-items: flex-end;
+    gap: 18px;
+    padding: 4px 2px 20px;
+  }
+  .hero .art {
+    width: 118px;
+    height: 118px;
+    border-radius: 18px;
+  }
+  .hero h1 {
+    margin: 0 0 6px;
+    font-size: clamp(22px, 3.2vw, 34px);
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    line-height: 1.05;
+    text-shadow: 0 6px 28px rgb(0 0 0 / 0.5);
+  }
+  .hero p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--dim);
+    max-width: 52ch;
+    line-height: 1.5;
+  }
+  .hero-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn {
+    appearance: none;
+    border: 1px solid rgb(255 255 255 / 0.28);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.05)),
+      hsl(var(--lg-tint-h) 80% 58% / 0.3);
+    color: var(--text);
+    font: 700 12.5px/1 var(--font);
+    letter-spacing: 0.3px;
+    padding: 11px 20px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.35s var(--spring), box-shadow 0.35s var(--ease), border-color 0.35s var(--ease);
+    box-shadow:
+      inset 2px -2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 0.85)),
+      inset -2px 2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 0.85)),
+      inset 6px -6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.5)),
+      inset -6px 6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.5)),
+      inset 0 0 3px rgb(0 0 0 / 0.5),
+      0 10px 24px rgb(0 0 0 / 0.32),
+      0 2px 6px hsl(var(--lg-tint-h) 90% 50% / 0.18);
+  }
+  .btn::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      45deg,
+      rgb(255 255 255 / 0.45) 0%, transparent 22%,
+      transparent 78%, rgb(255 255 255 / 0.45) 100%
+    );
+    filter: blur(6px);
+    mix-blend-mode: screen;
+    opacity: 0.85;
+    transition: opacity 0.3s var(--ease), filter 0.3s var(--ease);
+  }
+  .btn:hover {
+    transform: translateY(-3px) scale(1.04);
+    border-color: rgb(255 255 255 / 0.55);
+    box-shadow:
+      inset 2px -2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 1)),
+      inset -2px 2px 1px -1px rgb(255 255 255 / calc(var(--lg-spec) * 1)),
+      inset 6px -6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.6)),
+      inset -6px 6px 1px -6px rgb(255 255 255 / calc(var(--lg-spec) * 0.6)),
+      0 18px 38px hsl(var(--lg-tint-h) 90% 45% / 0.32),
+      0 14px 30px rgb(0 0 0 / 0.38);
+  }
+  .btn:hover::after { opacity: 1; filter: blur(4px); }
+  .btn:active { transform: scale(0.95); }
+  .btn--play {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.12)),
+      hsl(var(--lg-tint-h) 90% 62% / 0.65);
+    border-color: rgb(255 255 255 / 0.45);
+  }
+
+  .section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 18px 2px 12px;
+  }
+  .section-title h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 750;
+    letter-spacing: -0.2px;
+  }
+  .section-title a {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--dim);
+    text-decoration: none;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    padding: 12px;
+    border-radius: calc(var(--lg-radius) - 2px);
+    cursor: pointer;
+  }
+  .card:hover {
+    transform: translateY(-6px) scale(1.015);
+    box-shadow:
+      inset 0 1px 1px rgb(255 255 255 / calc(var(--lg-spec) * 0.35)),
+      0 24px 48px rgb(0 0 0 / 0.45);
+  }
+  .card .art { width: 100%; aspect-ratio: 1; border-radius: 14px; margin-bottom: 10px; }
+  .card b {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card small {
+    display: block;
+    margin-top: 3px;
+    font-size: 11.5px;
+    color: var(--dim);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .rowlist { display: flex; flex-direction: column; gap: 6px; }
+  .row {
+    display: grid;
+    grid-template-columns: 28px 44px 1fr 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: transform 0.35s var(--ease), background-color 0.3s var(--ease);
+    border: 1px solid transparent;
+  }
+  .row:hover {
+    transform: scale(1.006);
+    background: rgb(255 255 255 / 0.07);
+    border-color: rgb(255 255 255 / 0.1);
+  }
+  .row .num { color: var(--dim); font-variant-numeric: tabular-nums; text-align: right; }
+  .row .t b { display: block; font-size: 13px; font-weight: 650; }
+  .row .t small { color: var(--dim); font-size: 11.5px; }
+  .row .al { color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .dur { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- right panel ---------- */
+  .right {
+    grid-area: right;
+    border-radius: var(--lg-radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden auto;
+    animation: rise 0.6s var(--spring) 0.15s both;
+  }
+  .right h2 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 750;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .np-art {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: calc(var(--lg-radius) - 6px);
+    box-shadow: 0 24px 48px rgb(0 0 0 / 0.5), inset 0 1px 1px rgb(255 255 255 / 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+  .np-art::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(125deg, rgb(255 255 255 / 0.25), transparent 40%);
+    mix-blend-mode: screen;
+  }
+  .np-meta { text-align: left; margin-top: 14px; }
+  .np-meta h3 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.2px; }
+  .np-meta p { margin: 4px 0 0; color: var(--dim); font-size: 13px; }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.35s var(--ease), background-color 0.3s var(--ease);
+  }
+  .queue-item:hover {
+    transform: translateX(4px);
+    background: rgb(255 255 255 / 0.07);
+  }
+  .queue-item .meta b { display: block; font-size: 12px; font-weight: 650; }
+  .queue-item .meta small { color: var(--dim); font-size: 11px; }
+
+  /* ---------- player dock — reference widget look ---------- */
+  .player {
+    grid-area: player;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 22px;
+    border-radius: calc(var(--lg-radius) + 4px);
+    border: 1px solid rgb(255 255 255 / 0.38);
+    background:
+      linear-gradient(180deg,
+        rgb(255 255 255 / calc(var(--lg-spec) * 0.22)) 0%,
+        rgb(255 255 255 / 0.03) 34%,
+        rgb(2 4 12 / 0.22) 72%,
+        rgb(2 4 12 / 0.38) 100%),
+      hsl(228 30% 7% / 0.34);
+    -webkit-backdrop-filter: var(--filter-player-id, var(--filter-id)) saturate(1.45) blur(calc(var(--lg-blur) * 0.55)) brightness(1.02);
+    backdrop-filter: var(--filter-player-id, var(--filter-id)) saturate(1.45) blur(calc(var(--lg-blur) * 0.55)) brightness(1.02);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.42),
+      inset 1px 0 2px rgb(255 255 255 / 0.18),
+      inset -1px 0 2px rgb(255 255 255 / 0.18),
+      inset 0 -1px 0 rgb(255 255 255 / 0.14),
+      inset 0 0 24px rgb(2 4 12 / 0.18),
+      0 26px 64px rgb(0 0 0 / 0.5),
+      0 8px 22px rgb(0 0 0 / 0.35);
+    transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease);
+    animation: rise 0.65s var(--spring) 0.2s both;
+  }
+  .player:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.5),
+      inset 1px 0 2px rgb(255 255 255 / 0.2),
+      inset -1px 0 2px rgb(255 255 255 / 0.2),
+      inset 0 -1px 0 rgb(255 255 255 / 0.16),
+      0 32px 76px rgb(0 0 0 / 0.52),
+      0 10px 26px hsl(var(--lg-tint-h) 90% 45% / 0.2);
+  }
+
+  .art--player {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    flex: 0 0 auto;
+    box-shadow:
+      0 12px 28px rgb(0 0 0 / 0.5),
+      0 4px 10px rgb(0 0 0 / 0.35),
+      inset 0 1px 1px rgb(255 255 255 / 0.22);
+  }
+
+  .p-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 560px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .p-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 750;
+    letter-spacing: 0.1px;
+    text-shadow: 0 2px 10px rgb(0 0 0 / 0.45);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .p-artist {
+    margin: 0;
+    font-size: 13px;
+    color: rgb(255 255 255 / 0.66);
+    text-shadow: 0 1px 8px rgb(0 0 0 / 0.4);
+  }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgb(255 255 255 / 0.6);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2px;
+  }
+  .bar {
+    position: relative;
+    flex: 1;
+    height: 5px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.22);
+    overflow: visible;
+    cursor: pointer;
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35);
+  }
+  .bar .fill {
+    position: absolute;
+    inset: 0;
+    width: 36%;
+    border-radius: inherit;
+    background: rgb(255 255 255 / 0.92);
+    box-shadow: 0 0 10px rgb(255 255 255 / 0.45);
+    transition: width 0.25s linear;
+  }
+  .bar .knob {
+    position: absolute;
+    top: 50%;
+    left: 36%;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    background: rgb(255 255 255 / 0.98);
+    box-shadow:
+      0 2px 8px rgb(0 0 0 / 0.45),
+      0 0 0 3px rgb(255 255 255 / 0.12),
+      inset 0 1px 1px rgb(255 255 255 / 0.95);
+    transition: left 0.25s linear, transform 0.25s var(--spring);
+  }
+  .bar:hover .knob { transform: translate(-50%, -50%) scale(1.25); }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 2px;
+  }
+  .ctl {
+    appearance: none;
+    background: none;
+    border: 0;
+    color: rgb(255 255 255 / 0.92);
+    font-size: 17px;
+    cursor: pointer;
+    padding: 2px;
+    transition: transform 0.3s var(--spring), color 0.3s;
+  }
+  .ctl:hover { transform: scale(1.16); color: #fff; }
+  .ctl:active { transform: scale(0.9); }
+  .ctl--play {
+    font-size: 22px;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    filter: drop-shadow(0 0 10px rgb(255 255 255 / 0.55)) drop-shadow(0 2px 6px rgb(0 0 0 / 0.35));
+    transform: scale(1.15);
+  }
+  .ctl--play:hover { transform: scale(1.28); }
+
+  .p-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgb(255 255 255 / 0.55);
+    flex: 0 0 auto;
+  }
+  .p-right .ctl { color: inherit; font-size: 13px; }
+  .p-right .bar { width: 90px; flex: 0 0 auto; height: 4px; }
+
+/* ---------- glass lab (floating settings) ---------- */
+  .lab-toggle {
+    position: fixed;
+    right: 18px;
+    bottom: 122px;
+    z-index: 40;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    display: grid;
+    place-items: center;
+    color: var(--text);
+    transition: transform 0.4s var(--spring);
+  }
+  .lab-toggle:hover { transform: translateY(-4px) scale(1.06); }
+
+  .lab {
+    position: fixed;
+    right: 18px;
+    bottom: 186px;
+    z-index: 41;
+    width: min(300px, calc(100vw - 36px));
+    border-radius: 24px;
+    padding: 16px;
+    transform-origin: bottom right;
+    transition: opacity 0.35s var(--ease), transform 0.45s var(--spring);
+  }
+  .lab[hidden] { display: block !important; opacity: 0; pointer-events: none; transform: translateY(12px) scale(0.92); }
+
+  .lab h4 {
+    margin: 0 0 12px;
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 750;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .lab .presets { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+  .lab .chip {
+    appearance: none;
+    border: 1px solid rgb(255 255 255 / 0.18);
+    background: rgb(255 255 255 / 0.1);
+    color: var(--text);
+    font: 650 11px/1 var(--font);
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.3s var(--spring), background-color 0.3s;
+    box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.2);
+  }
+  .lab .chip:hover { transform: translateY(-2px); }
+  .lab .chip.is-active {
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.1)),
+      hsl(var(--lg-tint-h) 85% 60% / 0.5);
+    border-color: rgb(255 255 255 / 0.5);
+  }
+  .lab label.slider { display: block; margin: 10px 0; }
+  .lab .slider .meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: 650;
+    margin-bottom: 6px;
+  }
+  .lab .slider .meta output {
+    color: var(--dim);
+    font-size: 10.5px;
+    font-weight: 700;
+    background: rgb(255 255 255 / 0.1);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+  .lab input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 22px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .lab input[type="range"]::-webkit-slider-runnable-track {
+    height: 9px;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+      rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.45) var(--fill, 50%),
+      rgb(255 255 255 / 0.12) var(--fill, 50%), rgb(255 255 255 / 0.12) 100%);
+    border: 1px solid rgb(255 255 255 / 0.16);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.3);
+  }
+  .lab input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 19px;
+    height: 19px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #fff, #e6e2f5);
+    border: 1px solid rgb(255 255 255 / 0.9);
+    box-shadow: 0 4px 10px rgb(0 0 0 / 0.4);
+    transition: transform 0.25s var(--spring);
+  }
+  .lab input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+
+  .lab .swatches { display: flex; gap: 8px; margin: 12px 0 4px; }
+  .lab .swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid rgb(255 255 255 / 0.25);
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.5), transparent 55%), var(--s);
+    cursor: pointer;
+    transition: transform 0.3s var(--spring), border-color 0.3s;
+    box-shadow: inset 0 1px 2px rgb(255 255 255 / 0.5), 0 4px 10px rgb(0 0 0 / 0.3);
+  }
+  .lab .swatch:hover { transform: translateY(-3px); }
+  .lab .swatch.is-active { border-color: #fff; transform: scale(1.12); }
+
+  /* ---------- scrollbars ---------- */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.16);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 0.3); background-clip: padding-box; }
+
+  /* ---------- entrance motion ---------- */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1180px) {
+    .app {
+      grid-template-columns: 220px 1fr;
+      grid-template-areas:
+        "top   top"
+        "side  main"
+        "player player";
+    }
+    .right { display: none; }
+    .search { max-width: 320px; }
+  }
+  @media (max-width: 860px) {
+    .app {
+      grid-template-columns: 72px 1fr;
+      gap: 10px;
+      padding: 10px;
+      padding-bottom: 12px;
+    }
+    .sidebar { padding: 12px 8px; align-items: center; }
+    .sidebar .side-head h2,
+    .side-link span,
+    .track-mini .meta { display: none; }
+    .side-link { justify-content: center; padding: 10px; }
+    .track-mini { justify-content: center; }
+    .logo .wordmark { display: none; }
+    .hero { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .hero .art { width: 92px; height: 92px; }
+    .row { grid-template-columns: 22px 40px 1fr auto; }
+    .row .al { display: none; }
+  }
+  @media (max-width: 640px) {
+    .app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 58px 1fr 128px;
+      grid-template-areas:
+        "top"
+        "main"
+        "player";
+    }
+    .sidebar { display: none; }
+    .topbar { padding: 0 12px; gap: 10px; }
+    .nav-arrows { display: none; }
+    .user-pill .name { display: none; }
+    .user-pill { padding: 4px; }
+    .player { padding: 10px 14px; gap: 12px; }
+    .art--player { width: 56px; height: 56px; border-radius: 12px; }
+    .p-right { display: none; }
+    .p-title { font-size: 15px; }
+    .lab { bottom: 160px; }
+    .lab-toggle { bottom: 150px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Liquid Glass refraction engine (same as the extension) ===== -->
+<svg class="glass-surface__filter" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <filter id="lg-glass-filter" color-interpolation-filters="sRGB"
+            x="0%" y="0%" width="100%" height="100%">
+      <feImage x="0" y="0" width="100%" height="100%" preserveAspectRatio="none"
+               result="map"
+               href="data:image/png;base64,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" />
+      <feDisplacementMap in="SourceGraphic" in2="map" id="lg-disp-red" result="dispRed"
+        scale="-20" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feColorMatrix in="dispRed" type="matrix"
+        values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="red"></feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="map" id="lg-disp-green" result="dispGreen"
+        scale="-24" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feColorMatrix in="dispGreen" type="matrix"
+        values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="green"></feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="map" id="lg-disp-blue" result="dispBlue"
+        scale="-28" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feColorMatrix in="dispBlue" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blue"></feColorMatrix>
+      <feBlend in="red" in2="green" mode="screen" result="rg"></feBlend>
+      <feBlend in="rg" in2="blue" mode="screen" result="output"></feBlend>
+      <feGaussianBlur in="output" stdDeviation="3"></feGaussianBlur>
+    </filter>
+
+    <!-- player-dock filter: stronger split for the chromatic edge fringe -->
+    <filter id="lg-glass-filter-player" color-interpolation-filters="sRGB"
+            x="0%" y="0%" width="100%" height="100%">
+      <feImage x="0" y="0" width="100%" height="100%" preserveAspectRatio="none"
+               result="map"
+               href="data:image/png;base64,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" />
+      <feDisplacementMap in="SourceGraphic" in2="map" id="lg-disp-pl-red" result="dispRed"
+        scale="-27" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feColorMatrix in="dispRed" type="matrix"
+        values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="red"></feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="map" id="lg-disp-pl-green" result="dispGreen"
+        scale="-33" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feColorMatrix in="dispGreen" type="matrix"
+        values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="green"></feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="map" id="lg-disp-pl-blue" result="dispBlue"
+        scale="-39" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feColorMatrix in="dispBlue" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blue"></feColorMatrix>
+      <feBlend in="red" in2="green" mode="screen" result="rg"></feBlend>
+      <feBlend in="rg" in2="blue" mode="screen" result="output"></feBlend>
+      <feGaussianBlur in="output" stdDeviation="2.5"></feGaussianBlur>
+    </filter>
+  </defs>
+</svg>
+
+<div class="aurora" aria-hidden="true"></div>
+
+<div class="app">
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar glass">
+    <div class="logo">
+      <div class="mark">◐</div>
+      <span class="wordmark">Liquid Tunes</span>
+    </div>
+    <div class="nav-arrows">
+      <button class="round-btn" aria-label="Back">‹</button>
+      <button class="round-btn" aria-label="Forward">›</button>
+    </div>
+    <div class="search glass-lite">
+      <span>⌕</span>
+      <input class="glass-input" type="search" placeholder="Search artists, albums, tracks…" />
+    </div>
+    <div class="user-pill glass-lite">
+      <div class="avatar"></div>
+      <span class="name">Aurora</span>
+    </div>
+  </header>
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar glass">
+    <div class="side-head">
+      <h2>Your Library</h2>
+      <button class="round-btn" style="width:28px;height:28px;font-size:14px" aria-label="Add">＋</button>
+    </div>
+    <div class="side-link is-active"><span class="ico">♥</span><span>Liked Songs</span></div>
+    <div class="side-link"><span class="ico">⏱</span><span>Recently Played</span></div>
+    <div class="side-link"><span class="ico">✦</span><span>Discover Mix</span></div>
+    <div class="side-scroll">
+      <div class="track-mini">
+        <div class="art art--sm a1"></div>
+        <div class="meta"><b>Neon Horizon</b><small>Playlist · 42 songs</small></div>
+      </div>
+      <div class="track-mini">
+        <div class="art art--sm a2"></div>
+        <div class="meta"><b>Golden Hour</b><small>Playlist · 28 songs</small></div>
+      </div>
+      <div class="track-mini">
+        <div class="art art--sm a3"></div>
+        <div class="meta"><b>Deep Focus</b><small>Playlist · 64 songs</small></div>
+      </div>
+      <div class="track-mini">
+        <div class="art art--sm a4"></div>
+        <div class="meta"><b>Indie Garden</b><small>Playlist · 31 songs</small></div>
+      </div>
+      <div class="track-mini">
+        <div class="art art--sm a5"></div>
+        <div class="meta"><b>Summer Drift</b><small>Playlist · 19 songs</small></div>
+      </div>
+      <div class="track-mini">
+        <div class="art art--sm a6"></div>
+        <div class="meta"><b>Midnight Drive</b><small>Playlist · 52 songs</small></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main glass">
+    <div class="main-scroll">
+      <section class="hero">
+        <div class="art a9"></div>
+        <div>
+          <p style="letter-spacing:1.4px;text-transform:uppercase;font-size:10.5px;font-weight:750;margin-bottom:8px">Featured playlist</p>
+          <h1>Prismatic Nights</h1>
+          <p>Shimmering synths, liquid reverb and after-dark pop — curated for the glass hour.</p>
+          <div class="hero-actions">
+            <button class="btn btn--play">▶&nbsp; Play</button>
+            <button class="btn">↻&nbsp; Shuffle</button>
+            <button class="btn">＋&nbsp; Save</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="section-title">
+        <h3>Made for Aurora</h3>
+        <a href="#" onclick="return false">Show all</a>
+      </div>
+      <div class="grid">
+        <div class="card glass-lite"><div class="art a1"></div><b>Daily Mix 01</b><small>Liquid pop, shimmer bass</small></div>
+        <div class="card glass-lite"><div class="art a3"></div><b>Glass Piano</b><small>Soft keys for slow nights</small></div>
+        <div class="card glass-lite"><div class="art a5"></div><b>Sunset Circuit</b><small>Warm electro, long drives</small></div>
+        <div class="card glass-lite"><div class="art a4"></div><b>Verdant</b><small>Fresh indie every Friday</small></div>
+        <div class="card glass-lite"><div class="art a6"></div><b>Deep Blue</b><small>Focus waves, zero noise</small></div>
+        <div class="card glass-lite"><div class="art a10"></div><b>Ember</b><small>High-energy dance cuts</small></div>
+      </div>
+
+      <div class="section-title">
+        <h3>Jump back in</h3>
+        <a href="#" onclick="return false">History</a>
+      </div>
+      <div class="rowlist">
+        <div class="row">
+          <span class="num">1</span>
+          <div class="art art--sm a9" style="width:38px;height:38px"></div>
+          <div class="t"><b>Prismatic Nights</b><small>Nova Lux</small></div>
+          <div class="al">Glasswork</div>
+          <div class="dur">3:42</div>
+        </div>
+        <div class="row">
+          <span class="num">2</span>
+          <div class="art art--sm a3" style="width:38px;height:38px"></div>
+          <div class="t"><b>Refraction</b><small>Kepler Waves</small></div>
+          <div class="al">Spectrum</div>
+          <div class="dur">4:05</div>
+        </div>
+        <div class="row">
+          <span class="num">3</span>
+          <div class="art art--sm a2" style="width:38px;height:38px"></div>
+          <div class="t"><b>Golden Static</b><small>The Amber Room</small></div>
+          <div class="al">Honeycomb</div>
+          <div class="dur">2:58</div>
+        </div>
+        <div class="row">
+          <span class="num">4</span>
+          <div class="art art--sm a8" style="width:38px;height:38px"></div>
+          <div class="t"><b>Chrome Rain</b><small>Mira Vale</small></div>
+          <div class="al">Silverline</div>
+          <div class="dur">3:27</div>
+        </div>
+        <div class="row">
+          <span class="num">5</span>
+          <div class="art art--sm a6" style="width:38px;height:38px"></div>
+          <div class="t"><b>Slow Orbit</b><small>Satellite Youth</small></div>
+          <div class="al">Apogee</div>
+          <div class="dur">5:11</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= RIGHT PANEL ================= -->
+  <aside class="right glass">
+    <div>
+      <h2>Now Playing <span style="opacity:.55;font-size:14px">⋯</span></h2>
+      <div class="np-art a9"></div>
+      <div class="np-meta">
+        <h3>Prismatic Nights</h3>
+        <p>Nova Lux · Glasswork</p>
+      </div>
+    </div>
+    <div>
+      <h2>Next up</h2>
+      <div class="queue-item">
+        <div class="art art--sm a3" style="width:36px;height:36px"></div>
+        <div class="meta"><b>Refraction</b><small>Kepler Waves</small></div>
+      </div>
+      <div class="queue-item">
+        <div class="art art--sm a2" style="width:36px;height:36px"></div>
+        <div class="meta"><b>Golden Static</b><small>The Amber Room</small></div>
+      </div>
+      <div class="queue-item">
+        <div class="art art--sm a8" style="width:36px;height:36px"></div>
+        <div class="meta"><b>Chrome Rain</b><small>Mira Vale</small></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= PLAYER DOCK (reference widget) ================= -->
+  <footer class="player">
+    <div class="art art--player a9"></div>
+    <div class="p-body">
+      <h3 class="p-title">Prismatic Nights</h3>
+      <p class="p-artist">Nova Lux · Glasswork</p>
+      <div class="progress">
+        <span id="curTime">1:21</span>
+        <div class="bar" id="seek">
+          <div class="fill" id="seekFill"></div>
+          <div class="knob" id="seekKnob"></div>
+        </div>
+        <span>3:42</span>
+      </div>
+      <div class="controls">
+        <button class="ctl" aria-label="Shuffle">⇄</button>
+        <button class="ctl" aria-label="Previous">⏮</button>
+        <button class="ctl ctl--play" id="playBtn" aria-label="Play / Pause">⏸</button>
+        <button class="ctl" aria-label="Next">⏭</button>
+        <button class="ctl" aria-label="Repeat">↻</button>
+      </div>
+    </div>
+    <div class="p-right">
+      <button class="ctl" aria-label="Queue">☰</button>
+      <button class="ctl" aria-label="Devices">▱</button>
+      <span style="font-size:13px">🔊</span>
+      <div class="bar" id="volBar"><div class="fill" style="width:68%"></div><div class="knob" style="left:68%"></div></div>
+    </div>
+  </footer>
+</div>
+
+<!-- ================= GLASS LAB ================= -->
+<button class="lab-toggle glass" id="labToggle" aria-label="Open material settings" title="Material settings">✦</button>
+<div class="lab glass" id="lab">
+  <h4>Material Lab <button class="chip" id="labClose" style="padding:5px 10px">✕</button></h4>
+  <div class="presets" id="labPresets">
+    <button class="chip is-active" data-preset="aurora">Aurora</button>
+    <button class="chip" data-preset="frost">Frost</button>
+    <button class="chip" data-preset="clear">Clear</button>
+    <button class="chip" data-preset="smoked">Smoked</button>
+    <button class="chip" data-preset="prism">Prism</button>
+  </div>
+
+  <label class="slider">
+    <div class="meta"><span>Frost</span><output id="o-frost">12%</output></div>
+    <input type="range" id="s-frost" min="0" max="60" value="12" />
+  </label>
+  <label class="slider">
+    <div class="meta"><span>Blur</span><output id="o-blur">18 px</output></div>
+    <input type="range" id="s-blur" min="0" max="40" value="18" />
+  </label>
+  <label class="slider">
+    <div class="meta"><span>Refraction</span><output id="o-disp">24</output></div>
+    <input type="range" id="s-disp" min="0" max="40" value="24" />
+  </label>
+  <label class="slider">
+    <div class="meta"><span>Saturation</span><output id="o-sat">130%</output></div>
+    <input type="range" id="s-sat" min="50" max="220" step="5" value="130" />
+  </label>
+  <label class="slider">
+    <div class="meta"><span>Specular</span><output id="o-spec">55%</output></div>
+    <input type="range" id="s-spec" min="0" max="100" value="55" />
+  </label>
+  <label class="slider">
+    <div class="meta"><span>Tint strength</span><output id="o-tint">14%</output></div>
+    <input type="range" id="s-tint" min="0" max="60" value="14" />
+  </label>
+
+  <div class="swatches" id="labSwatches">
+    <button class="swatch is-active" data-hue="258" style="--s:#7c5cff" title="Violet"></button>
+    <button class="swatch" data-hue="210" style="--s:#38bdf8" title="Sky"></button>
+    <button class="swatch" data-hue="330" style="--s:#ff5fa2" title="Rose"></button>
+    <button class="swatch" data-hue="28" style="--s:#ff9e40" title="Ember"></button>
+    <button class="swatch" data-hue="152" style="--s:#34d399" title="Mint"></button>
+    <button class="swatch" data-hue="0" style="--s:#ffffff" title="Neutral"></button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const root = document.documentElement;
+
+  const PRESETS = {
+    aurora:  { frost: 0.12, sat: 1.30, blur: 18, disp: 24, spec: 0.55, tint: 0.14, hue: 258, radius: 26 },
+    frost:   { frost: 0.22, sat: 1.10, blur: 26, disp: 16, spec: 0.70, tint: 0.12, hue: 210, radius: 28 },
+    clear:   { frost: 0.06, sat: 1.55, blur: 10, disp: 30, spec: 0.65, tint: 0.05, hue: 258, radius: 22 },
+    smoked:  { frost: 0.34, sat: 1.05, blur: 22, disp: 12, spec: 0.35, tint: 0.38, hue: 250, radius: 24 },
+    prism:   { frost: 0.10, sat: 1.85, blur: 14, disp: 38, spec: 0.60, tint: 0.18, hue: 330, radius: 30 }
+  };
+
+  const state = { ...PRESETS.aurora };
+
+  function apply() {
+    const s = root.style;
+    s.setProperty("--lg-frost", state.frost);
+    s.setProperty("--lg-sat", state.sat);
+    s.setProperty("--lg-blur", state.blur + "px");
+    s.setProperty("--lg-radius", state.radius + "px");
+    s.setProperty("--lg-spec", state.spec);
+    s.setProperty("--lg-tint-a", state.tint);
+    s.setProperty("--lg-tint-h", state.hue);
+    s.setProperty("--lg-tint-s", state.hue === 0 ? "0%" : "90%");
+    setScales(1 + 0.4 * rippleT);
+  }
+
+  /* Liquid button ripple (family A′): displacement 1 → 1.4 on hover */
+  function setScales(mult) {
+    document.getElementById("lg-disp-red").setAttribute("scale", -state.disp * 0.833 * mult);
+    document.getElementById("lg-disp-green").setAttribute("scale", -state.disp * mult);
+    document.getElementById("lg-disp-blue").setAttribute("scale", -state.disp * 1.166 * mult);
+    // player dock: 1.25× for the chromatic edge fringe
+    const pl = 1.25 * mult;
+    document.getElementById("lg-disp-pl-red").setAttribute("scale", -state.disp * 0.833 * pl);
+    document.getElementById("lg-disp-pl-green").setAttribute("scale", -state.disp * pl);
+    document.getElementById("lg-disp-pl-blue").setAttribute("scale", -state.disp * 1.166 * pl);
+  }
+  let rippleT = 0, rippleDir = 0, rippleRaf = 0;
+  function rippleTick() {
+    rippleT += rippleDir * 0.075;
+    if (rippleT >= 1) { rippleT = 1; rippleDir = 0; }
+    if (rippleT <= 0) { rippleT = 0; rippleDir = 0; }
+    setScales(1 + 0.4 * rippleT);
+    if (rippleDir !== 0) rippleRaf = requestAnimationFrame(rippleTick);
+  }
+  const HOT = ".btn, .ctl--play, .round-btn, .lab-toggle, .chip, .swatch";
+  document.addEventListener("pointerover", (e) => {
+    if (e.target.closest?.(HOT)) {
+      rippleDir = 1;
+      cancelAnimationFrame(rippleRaf);
+      rippleRaf = requestAnimationFrame(rippleTick);
+    }
+  }, true);
+  document.addEventListener("pointerout", (e) => {
+    const b = e.target.closest?.(HOT);
+    if (!b) return;
+    if (e.relatedTarget && b.contains(e.relatedTarget)) return;
+    rippleDir = -1;
+    cancelAnimationFrame(rippleRaf);
+    rippleRaf = requestAnimationFrame(rippleTick);
+  }, true);
+
+  function paintRange(input) {
+    const min = +input.min || 0, max = +input.max || 100;
+    input.style.setProperty("--fill", ((+input.value - min) / (max - min)) * 100 + "%");
+  }
+
+  const bind = (id, out, fmt, setter) => {
+    const el = document.getElementById(id);
+    const o = document.getElementById(out);
+    const sync = () => {
+      setter(+el.value);
+      o.value = fmt(+el.value);
+      paintRange(el);
+      apply();
+    };
+    el.addEventListener("input", sync);
+    paintRange(el);
+    return sync;
+  };
+
+  const syncs = [
+    bind("s-frost", "o-frost", v => v + "%", v => state.frost = v / 100),
+    bind("s-blur", "o-blur", v => v + " px", v => state.blur = v),
+    bind("s-disp", "o-disp", v => String(v), v => state.disp = v),
+    bind("s-sat", "o-sat", v => v + "%", v => state.sat = v / 100),
+    bind("s-spec", "o-spec", v => v + "%", v => state.spec = v / 100),
+    bind("s-tint", "o-tint", v => v + "%", v => state.tint = v / 100)
+  ];
+
+  function syncAllControls() {
+    document.getElementById("s-frost").value = Math.round(state.frost * 100);
+    document.getElementById("s-blur").value = state.blur;
+    document.getElementById("s-disp").value = state.disp;
+    document.getElementById("s-sat").value = Math.round(state.sat * 100);
+    document.getElementById("s-spec").value = Math.round(state.spec * 100);
+    document.getElementById("s-tint").value = Math.round(state.tint * 100);
+    syncs.forEach(f => f());
+    document.querySelectorAll("#labSwatches .swatch").forEach(sw =>
+      sw.classList.toggle("is-active", +sw.dataset.hue === state.hue));
+  }
+
+  document.getElementById("labPresets").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-preset]");
+    if (!b) return;
+    Object.assign(state, PRESETS[b.dataset.preset]);
+    document.querySelectorAll("#labPresets .chip").forEach(c =>
+      c.classList.toggle("is-active", c === b));
+    syncAllControls();
+  });
+
+  document.getElementById("labSwatches").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-hue]");
+    if (!b) return;
+    state.hue = +b.dataset.hue;
+    syncAllControls();
+  });
+
+  // Lab open/close
+  const lab = document.getElementById("lab");
+  const toggleLab = (show) => {
+    lab.hidden = show === undefined ? !lab.hidden : !show;
+  };
+  document.getElementById("labToggle").addEventListener("click", () => toggleLab());
+  document.getElementById("labClose").addEventListener("click", () => toggleLab(false));
+  if (window.innerWidth < 720) toggleLab(false);
+
+  // Fake transport
+  let playing = true, t = 81, total = 222, raf = null;
+  const fill = document.getElementById("seekFill");
+  const knob = document.getElementById("seekKnob");
+  const curTime = document.getElementById("curTime");
+  const playBtn = document.getElementById("playBtn");
+
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+    return m + ":" + String(s).padStart(2, "0");
+  }
+  function tick() {
+    if (!playing) return;
+    t = (t + 0.12) % total;
+    const pct = (t / total) * 100;
+    fill.style.width = pct + "%";
+    knob.style.left = pct + "%";
+    curTime.textContent = fmtTime(t);
+  }
+  setInterval(tick, 120);
+
+  playBtn.addEventListener("click", () => {
+    playing = !playing;
+    playBtn.textContent = playing ? "⏸" : "▶";
+  });
+
+  document.getElementById("seek").addEventListener("click", (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * total;
+  });
+
+  apply();
+})();
+</script>
+</body>
+</html>
