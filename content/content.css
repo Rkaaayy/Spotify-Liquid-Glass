@@ -126,7 +126,10 @@ html.lg-enabled :is(
   [role="dialog"],
   [role="menu"],
   [role="tooltip"],
-  [class*="tooltip"]
+  [class*="tooltip"],
+  [data-testid*="pip"],
+  [class*="pip-window"],
+  [aria-label*="Picture-in-Picture"]
 ) {
   background:
     linear-gradient(
@@ -779,8 +782,11 @@ html.lg-enabled :is(
   [class*="actionBar-ActionBar"] [role="button"],
   [class*="player-controls"] button,
   [class*="control-button"],
-  header:not(main header) button
+  header:not(main header) button,
+  [data-testid*="pip"] button,
+  [class*="pip-window"] button
 ) {
+
   position: relative;
   overflow: hidden;
   isolation: isolate;
